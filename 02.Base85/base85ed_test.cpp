@@ -2,83 +2,97 @@
 #include <random>
 #include <vector>
 #include <cstdint>
+#include <string>
 
 #include "base85ed.h"
 
-static std::vector<uint8_t> str2vec(const std::string& s)
-{
-    return std::vector<uint8_t>(s.begin(), s.end());
-}
+// ---------------- utils ----------------
 
 static std::vector<uint8_t> random_bytes(size_t n)
 {
     std::vector<uint8_t> v(n);
-    std::random_device rd;
-    std::mt19937 gen(rd());
+
+    std::mt19937 gen(12345); // фиксируем seed → детерминированность тестов
     std::uniform_int_distribution<int> dist(0, 255);
 
-    for (auto &x : v) x = static_cast<uint8_t>(dist(gen));
+    for (auto& x : v)
+        x = static_cast<uint8_t>(dist(gen));
+
     return v;
 }
 
+// ---------------- tests ----------------
+
 TEST(Base85, Empty)
 {
-    std::vector<uint8_t> empty;
-    EXPECT_EQ(base85::decode(base85::encode(empty)), empty);
-}
+    std::vector<uint8_t> data;
 
-TEST(Base85, KnownStrings)
-{
-    std::string s = "hello world!";
-    auto enc = base85::encode(str2vec(s));
-    auto dec = base85::decode(enc);
-
-    EXPECT_EQ(dec, str2vec(s));
-}
-
-TEST(Base85, RoundTripSmall)
-{
-    for (int i = 1; i < 100; ++i)
-    {
-        auto data = random_bytes(i);
-        auto enc = base85::encode(data);
-        auto dec = base85::decode(enc);
-
-        EXPECT_EQ(dec, data);
-    }
-}
-
-TEST(Base85, RoundTripLarge)
-{
-    for (int i = 100; i < 5000; i += 123)
-    {
-        auto data = random_bytes(i);
-        auto enc = base85::encode(data);
-        auto dec = base85::decode(enc);
-
-        EXPECT_EQ(dec, data);
-    }
-}
-
-TEST(Base85, SingleByte)
-{
-    auto data = std::vector<uint8_t>{0x00};
-    auto enc = base85::encode(data);
-    auto dec = base85::decode(enc);
-
-    EXPECT_EQ(dec[0], 0x00);
-}
-
-TEST(Base85, MaxBytes)
-{
-    auto data = std::vector<uint8_t>{255, 254, 253, 252};
     auto enc = base85::encode(data);
     auto dec = base85::decode(enc);
 
     EXPECT_EQ(dec, data);
 }
 
-TEST(Base85, Deterministic)
+TEST(Base85, KnownString)
+{
+    std::string s = "hello world!";
+    std::vector<uint8_t> data(s.begin(), s.end());
+
+    auto dec = base85::decode(base85::encode(data));
+
+    EXPECT_EQ(dec, data);
+}
+
+TEST(Base85, SingleByte)
+{
+    for (int i = 0; i < 256; ++i)
+    {
+        std::vector<uint8_t> data = {static_cast<uint8_t>(i)};
+
+        auto dec = base85::decode(base85::encode(data));
+
+        EXPECT_EQ(dec, data);
+    }
+}
+
+TEST(Base85, SmallRandom)
+{
+    for (int n = 1; n <= 200; ++n)
+    {
+        auto data = random_bytes(n);
+
+        auto dec = base85::decode(base85::encode(data));
+
+        EXPECT_EQ(dec, data);
+    }
+}
+
+TEST(Base85, AlignmentEdgeCases)
+{
+    for (int n = 1; n <= 100; ++n)
+    {
+        // специально ломаем границы блоков
+        auto data = random_bytes(n * 4 - 1);
+
+        auto dec = base85::decode(base85::encode(data));
+
+        EXPECT_EQ(dec, data);
+    }
+}
+
+TEST(Base85, LargeRandom)
+{
+    for (int n = 100; n <= 3000; n += 77)
+    {
+        auto data = random_bytes(n);
+
+        auto dec = base85::decode(base85::encode(data));
+
+        EXPECT_EQ(dec, data);
+    }
+}
+
+TEST(Base85, DeterministicEncoding)
 {
     auto data = random_bytes(128);
 

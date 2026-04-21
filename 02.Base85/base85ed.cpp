@@ -1,7 +1,7 @@
 #include <vector>
 #include <cstdint>
 #include <stdexcept>
-#include <string>
+#include <algorithm>
 
 #include "base85ed.h"
 
@@ -9,76 +9,74 @@ namespace base85
 {
 
 static constexpr uint32_t BASE = 85;
-static constexpr uint32_t ASCII_OFFSET = 33;
+static constexpr uint32_t OFFSET = 33;
 
-static void encode_block(uint32_t value, std::vector<uint8_t>& out)
-{
-    char tmp[5];
-    for (int i = 4; i >= 0; --i)
-    {
-        tmp[i] = static_cast<char>(value % BASE + ASCII_OFFSET);
-        value /= BASE;
-    }
-    out.insert(out.end(), tmp, tmp + 5);
-}
-
-static uint32_t decode_block(const uint8_t* in)
-{
-    uint32_t value = 0;
-    for (int i = 0; i < 5; ++i)
-    {
-        value = value * BASE + (in[i] - ASCII_OFFSET);
-    }
-    return value;
-}
-
-std::vector<uint8_t> encode(std::vector<uint8_t> const &bytes)
+// ---------------- encode ----------------
+std::vector<uint8_t> encode(const std::vector<uint8_t>& bytes)
 {
     std::vector<uint8_t> out;
-
     size_t i = 0;
+
     while (i < bytes.size())
     {
         uint32_t block = 0;
-        int count = 0;
+        size_t chunk_size = std::min<size_t>(4, bytes.size() - i);
 
-        for (; count < 4 && i < bytes.size(); ++count, ++i)
+        // Читаем до 4 байт
+        for (int j = 0; j < 4; ++j)
         {
-            block |= (static_cast<uint32_t>(bytes[i]) << (24 - 8 * count));
+            block <<= 8;
+            if (i < bytes.size())
+                block |= bytes[i++];
         }
 
-        if (count < 4)
+        // Кодируем в 5 символов Base85
+        char tmp[5];
+        for (int j = 4; j >= 0; --j)
         {
-            block <<= (4 - count) * 8;
+            tmp[j] = static_cast<char>(block % BASE + OFFSET);
+            block /= BASE;
         }
 
-        encode_block(block, out);
+        // Согласно стандарту (как в Python/RFC 1924), если блок был неполным,
+        // нужно выводить только chunk_size + 1 символов.
+        out.insert(out.end(), tmp, tmp + (chunk_size + 1));
     }
 
     return out;
 }
 
-std::vector<uint8_t> decode(std::vector<uint8_t> const &b85str)
+// ---------------- decode ----------------
+std::vector<uint8_t> decode(const std::vector<uint8_t>& b85str)
 {
-    if (b85str.size() % 5 != 0)
-        throw std::runtime_error("Invalid Base85 length");
-
     std::vector<uint8_t> out;
+    size_t i = 0;
 
-    for (size_t i = 0; i < b85str.size(); i += 5)
+    while (i < b85str.size())
     {
-        uint32_t block = decode_block(&b85str[i]);
+        uint32_t block = 0;
+        size_t chunk_size = std::min<size_t>(5, b85str.size() - i);
+        
+        if (chunk_size < 2) break; 
 
-        uint8_t bytes[4];
-        bytes[0] = (block >> 24) & 0xFF;
-        bytes[1] = (block >> 16) & 0xFF;
-        bytes[2] = (block >> 8) & 0xFF;
-        bytes[3] = (block) & 0xFF;
+        for (size_t j = 0; j < 5; ++j) // Исправлено: int -> size_t
+        {
+            block *= BASE;
+            if (j < chunk_size) {
+                block += (b85str[i++] - OFFSET);
+            } else {
+                block += 84; 
+            }
+        }
 
-        out.insert(out.end(), bytes, bytes + 4);
+        // Исправлено: int -> size_t и безопасное приведение типа
+        for (size_t j = 0; j < chunk_size - 1; ++j)
+        {
+            out.push_back((block >> (24 - j * 8)) & 0xFF);
+        }
     }
 
     return out;
 }
 
-}
+} // namespace base85

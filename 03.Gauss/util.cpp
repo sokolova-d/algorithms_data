@@ -13,15 +13,13 @@ namespace
 std::string trim(const std::string &text)
 {
     std::string::size_type first = 0;
-    while (first < text.size()
-           && std::isspace(static_cast<unsigned char>(text[first])) != 0)
+    while (first < text.size() && std::isspace(static_cast<unsigned char>(text[first])) != 0)
     {
         ++first;
     }
 
     std::string::size_type last = text.size();
-    while (last > first
-           && std::isspace(static_cast<unsigned char>(text[last - 1])) != 0)
+    while (last > first && std::isspace(static_cast<unsigned char>(text[last - 1])) != 0)
     {
         --last;
     }
@@ -79,8 +77,7 @@ bool try_parse_double(const std::string &text, double &value)
     return true;
 }
 
-bool parse_numeric_row(const std::vector<std::string> &cells,
-                       std::vector<double> &row)
+bool parse_numeric_row(const std::vector<std::string> &cells, std::vector<double> &row)
 {
     row.clear();
     row.reserve(cells.size());
@@ -166,8 +163,7 @@ GaussMatrix load_csv_to_matrix(const char *filename)
     {
         for (int column_index = 0; column_index < matrix.cols(); ++column_index)
         {
-            matrix(row_index, column_index) =
-                rows[static_cast<std::size_t>(row_index)][static_cast<std::size_t>(column_index)];
+            matrix(row_index, column_index) = rows[static_cast<std::size_t>(row_index)][static_cast<std::size_t>(column_index)];
         }
     }
 

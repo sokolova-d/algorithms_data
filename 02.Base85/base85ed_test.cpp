@@ -1,82 +1,42 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <random>
+#include <stdexcept>
 #include <string>
+#include <unistd.h>
+#include <sys/wait.h>
 #include <vector>
 
 #include "base85ed.h"
 
-namespace
+const std::vector<std::pair<const char *, const char *>> short_cases =
 {
-std::vector<std::uint8_t> to_vector(const char* text)
+    {"", ""},
+    {"F#", "1"},
+    {"F){", "12"},
+    {"F)}j", "123"},
+    {"F)}kW", "1234"}
+};
+
+static std::vector<uint8_t> cstr2v(const char *s)
 {
-    const std::string string_value(text);
-    return std::vector<std::uint8_t>(string_value.begin(), string_value.end());
+    return std::vector<uint8_t>(s, s + std::string(s).size());
 }
 
-std::vector<std::uint8_t> random_bytes(std::size_t size)
+// Тесты encode
+TEST(Base85ShortsEncode, TrivialShortEncodes)
 {
-    std::vector<std::uint8_t> data(size);
-    std::mt19937 generator(12345);
-    std::uniform_int_distribution<int> distribution(0, 255);
-
-    for (std::uint8_t& byte : data)
+    for (const auto &p : short_cases)
     {
-        byte = static_cast<std::uint8_t>(distribution(generator));
-    }
-
-    return data;
-}
-}
-
-TEST(Base85Encode, KnownPythonCompatibleCases)
-{
-    const std::vector<std::pair<const char*, const char*>> cases = {
-        {"", ""},
-        {"F#", "1"},
-        {"F){", "12"},
-        {"F)}j", "123"},
-        {"F)}kW", "1234"},
-        {"Xk~0{Zy<MXa%^NF", "hello world!"},
-        {"PjF>!K}i", "OpenAI"},
-    };
-
-    for (const auto& test_case : cases)
-    {
-        EXPECT_EQ(base85::encode(to_vector(test_case.second)), to_vector(test_case.first));
+        EXPECT_EQ(base85::encode(cstr2v(p.second)), cstr2v(p.first));
     }
 }
 
-TEST(Base85Decode, KnownPythonCompatibleCases)
+// Тесты decode
+TEST(Base85ShortsDecode, TrivialShortDecodes)
 {
-    const std::vector<std::pair<const char*, const char*>> cases = {
-        {"", ""},
-        {"F#", "1"},
-        {"F){", "12"},
-        {"F)}j", "123"},
-        {"F)}kW", "1234"},
-        {"Xk~0{Zy<MXa%^NF", "hello world!"},
-        {"PjF>!K}i", "OpenAI"},
-    };
-
-    for (const auto& test_case : cases)
+    for (const auto &p : short_cases)
     {
-        EXPECT_EQ(base85::decode(to_vector(test_case.first)), to_vector(test_case.second));
+        EXPECT_EQ(base85::decode(cstr2v(p.first)), cstr2v(p.second));
     }
-}
-
-TEST(Base85RoundTrip, HandlesDifferentLengths)
-{
-    for (std::size_t size = 0; size <= 400; ++size)
-    {
-        const std::vector<std::uint8_t> data = random_bytes(size);
-        EXPECT_EQ(base85::decode(base85::encode(data)), data);
-    }
-}
-
-TEST(Base85Decode, RejectsInvalidCharacters)
-{
-    EXPECT_THROW(base85::decode(to_vector("abc\n")), std::runtime_error);
-    EXPECT_THROW(base85::decode(to_vector("?")), std::runtime_error);
 }

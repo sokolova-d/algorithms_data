@@ -26,7 +26,7 @@ astyle:
 	astyle --options=../astyle.ini *.h *.cpp
 
 tidy:
-	../tidy.sh
+	bash ../tidy.sh
 
 depends :
 	makedepend -f Makefile.hdrdep *.c*

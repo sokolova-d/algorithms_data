@@ -3,59 +3,73 @@
 
 #include "collvalue.h"
 
+#include <algorithm>
+
 template <typename Iterator>
-void bubble_sort(Iterator begin, Iterator end) {
-    if (begin == end) {
+void bubble_sort(Iterator begin, Iterator end)
+{
+    if (begin == end)
+    {
         return;
     }
 
-    for (Iterator last = end; last != begin; --last) {
+    for (Iterator last = end; last != begin; --last)
+    {
         bool changed = false;
 
-        for (Iterator it = begin; it + 1 != last; ++it) {
-            if (*(it + 1) < *it) {
+        for (Iterator it = begin; it + 1 != last; ++it)
+        {
+            if (*(it + 1) < *it)
+            {
+                using std::swap;
                 swap(*it, *(it + 1));
                 changed = true;
             }
         }
 
-        if (!changed) {
+        if (!changed)
+        {
             return;
         }
     }
 }
 
 template <typename Iterator>
-void quick_sort(Iterator begin, Iterator end) {
-    if (end - begin <= 1) {
+void quick_sort(Iterator begin, Iterator end)
+{
+    if (end - begin <= 1)
+    {
         return;
     }
 
-    Iterator left = begin;
-    Iterator right = end - 1;
     auto pivot = *(begin + (end - begin) / 2);
+    Iterator less = begin;
+    Iterator current = begin;
+    Iterator greater = end;
 
-    while (left <= right) {
-        while (*left < pivot) {
-            ++left;
+    while (current < greater)
+    {
+        if (*current < pivot)
+        {
+            using std::swap;
+            swap(*less, *current);
+            ++less;
+            ++current;
         }
-        while (pivot < *right) {
-            --right;
+        else if (pivot < *current)
+        {
+            --greater;
+            using std::swap;
+            swap(*current, *greater);
         }
-
-        if (left <= right) {
-            swap(*left, *right);
-            ++left;
-            --right;
+        else
+        {
+            ++current;
         }
     }
 
-    if (begin < right + 1) {
-        quick_sort(begin, right + 1);
-    }
-    if (left < end) {
-        quick_sort(left, end);
-    }
+    quick_sort(begin, less);
+    quick_sort(greater, end);
 }
 
-#endif
+#endif // SORTING_H

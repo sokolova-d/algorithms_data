@@ -1,7 +1,8 @@
-#include <iostream>
-#include <vector>
 #include <cstdint>
 #include <functional>
+#include <iostream>
+#include <string>
+#include <vector>
 
 #include "base85ed.h"
 
@@ -46,7 +47,6 @@ void write_vector_to_stdout(const std::vector<uint8_t>& data)
     // flush to ensure data is written out
     std::cout.flush();
 }
-
 
 int main(int argc, const char *argv[])
 {

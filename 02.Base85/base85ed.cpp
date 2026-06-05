@@ -1,78 +1,116 @@
-#include <vector>
+#include "base85ed.h"
+
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <stdexcept>
-#include <algorithm>
-
-#include "base85ed.h"
+#include <vector>
 
 namespace base85
 {
-
-static constexpr uint32_t BASE = 85;
-static constexpr uint32_t OFFSET = 33;
-
-// ---------------- encode ----------------
-std::vector<uint8_t> encode(const std::vector<uint8_t>& bytes)
+namespace
 {
-    std::vector<uint8_t> out;
-    size_t i = 0;
+constexpr std::uint32_t BASE = 85;
+constexpr char ALPHABET[] =
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "!#$%&()*+-;<=>?@^_`{|}~";
 
-    while (i < bytes.size())
+std::array<int, 256> make_decode_table()
+{
+    std::array<int, 256> table{};
+    table.fill(-1);
+
+    for (std::size_t index = 0; index < BASE; ++index)
     {
-        uint32_t block = 0;
-        size_t chunk_size = std::min<size_t>(4, bytes.size() - i);
+        table[static_cast<unsigned char>(ALPHABET[index])] = static_cast<int>(index);
+    }
 
-        // Читаем до 4 байт
-        for (int j = 0; j < 4; ++j)
+    return table;
+}
+
+const std::array<int, 256> DECODE_TABLE = make_decode_table();
+
+void append_encoded_block(std::vector<std::uint8_t>& out, std::uint32_t block,
+                          std::size_t symbols_count)
+{
+    std::array<std::uint8_t, 5> encoded{};
+
+    for (std::size_t index = encoded.size(); index > 0; --index)
+    {
+        encoded[index - 1] = static_cast<std::uint8_t>(ALPHABET[block % BASE]);
+        block /= BASE;
+    }
+
+    out.insert(out.end(), encoded.begin(), encoded.begin() + symbols_count);
+}
+} // namespace
+
+std::vector<std::uint8_t> encode(const std::vector<std::uint8_t>& bytes)
+{
+    std::vector<std::uint8_t> out;
+    out.reserve((bytes.size() + 3) / 4 * 5);
+
+    for (std::size_t position = 0; position < bytes.size(); position += 4)
+    {
+        const std::size_t chunk_size = std::min<std::size_t>(4, bytes.size() - position);
+        std::uint32_t block = 0;
+
+        for (std::size_t index = 0; index < 4; ++index)
         {
             block <<= 8;
-            if (i < bytes.size())
-                block |= bytes[i++];
+            if (index < chunk_size)
+            {
+                block |= bytes[position + index];
+            }
         }
 
-        // Кодируем в 5 символов Base85
-        char tmp[5];
-        for (int j = 4; j >= 0; --j)
-        {
-            tmp[j] = static_cast<char>(block % BASE + OFFSET);
-            block /= BASE;
-        }
-
-        // Согласно стандарту (как в Python/RFC 1924), если блок был неполным,
-        // нужно выводить только chunk_size + 1 символов.
-        out.insert(out.end(), tmp, tmp + (chunk_size + 1));
+        append_encoded_block(out, block, chunk_size + 1);
     }
 
     return out;
 }
 
-// ---------------- decode ----------------
-std::vector<uint8_t> decode(const std::vector<uint8_t>& b85str)
+std::vector<std::uint8_t> decode(const std::vector<std::uint8_t>& b85str)
 {
-    std::vector<uint8_t> out;
-    size_t i = 0;
+    std::vector<std::uint8_t> out;
+    out.reserve(b85str.size() / 5 * 4 + 4);
 
-    while (i < b85str.size())
+    for (std::size_t position = 0; position < b85str.size(); position += 5)
     {
-        uint32_t block = 0;
-        size_t chunk_size = std::min<size_t>(5, b85str.size() - i);
-        
-        if (chunk_size < 2) break; 
-
-        for (size_t j = 0; j < 5; ++j) // Исправлено: int -> size_t
+        const std::size_t chunk_size = std::min<std::size_t>(5, b85str.size() - position);
+        if (chunk_size == 1)
         {
-            block *= BASE;
-            if (j < chunk_size) {
-                block += (b85str[i++] - OFFSET);
-            } else {
-                block += 84; 
-            }
+            throw std::runtime_error("Invalid Base85 block length");
         }
 
-        // Исправлено: int -> size_t и безопасное приведение типа
-        for (size_t j = 0; j < chunk_size - 1; ++j)
+        std::uint64_t block = 0;
+        for (std::size_t index = 0; index < 5; ++index)
         {
-            out.push_back((block >> (24 - j * 8)) & 0xFF);
+            int digit = BASE - 1;
+            if (index < chunk_size)
+            {
+                const unsigned char symbol = b85str[position + index];
+                digit = DECODE_TABLE[symbol];
+                if (digit < 0)
+                {
+                    throw std::runtime_error("Invalid Base85 character");
+                }
+            }
+
+            block = block * BASE + static_cast<std::uint32_t>(digit);
+        }
+
+        if (block > 0xFFFFFFFFULL)
+        {
+            throw std::runtime_error("Invalid Base85 value");
+        }
+
+        const std::size_t bytes_count = chunk_size - 1;
+        for (std::size_t index = 0; index < bytes_count; ++index)
+        {
+            const std::size_t shift = 24 - index * 8;
+            out.push_back(static_cast<std::uint8_t>((block >> shift) & 0xFF));
         }
     }
 
